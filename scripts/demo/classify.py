@@ -54,7 +54,9 @@ model.compile(loss='categorical_crossentropy',
               metrics=['accuracy'])
 
 model2 = Model(inputs=model.input, outputs=model.get_layer('flatten_1').output)
+model.load_weights('my_model_weights.h5')
 
+clf = svm.SVC(kernel='rbf', class_weight='balanced')
 import subprocess
 import matplotlib.pyplot
 import os
@@ -85,6 +87,12 @@ def train():
 	x_train = spect_read
 	y_train = spectograms_ids
 
+	encoder = LabelEncoder()
+	y_temp_train = y_train
+	encoder.fit(y_temp_train)
+	encoded_Y = encoder.transform(y_temp_train)
+	dummy_y = np_utils.to_categorical(encoded_Y)
+
 
 	svm_x_train = []
 	svm_y_train = []
@@ -101,11 +109,12 @@ def train():
 	svm_y_train = np.array(svm_y_train)
 	svm_y_train = [np.where(r==1)[0][0] for r in svm_y_train]
 
+
 	clf.fit(svm_x_train, svm_y_train)
 	print('model trained')
+	return clf
 
-
-def test(): 
+def test(clf): 
 	rootdir = './test/'
 	spectograms = []
 	spect_read = []
@@ -122,24 +131,35 @@ def test():
 					name = subdir.replace(rootdir, '')
                 	#name = name.replace('/spects', "")
 					spectograms.append(file)
+					spectograms_ids.append(name)
 	x_test = spect_read
+	y_test = spectograms_ids
 
-
-	encoder = LabelEncoder()
-	y_temp_train = y_train
-	encoder.fit(y_temp_train)
-	encoded_Y = encoder.transform(y_temp_train)
-	dummy_y = np_utils.to_categorical(encoded_Y)
-
+	y_temp2_train = y_test
+	encoder = LabelEncoder()	
+	encoder.fit(y_temp2_train)
+	encoded_Y = encoder.transform(y_temp2_train)
+	dummy2_y = np_utils.to_categorical(encoded_Y)
 	svm_x_test = []
+	svm_y_test = []
 	for i in range(len(x_test)):
 		x_1 = np.expand_dims(x_test[i], axis=0)
     	#x_1 = preprocess_input(x_1)
 		flatten_2_features = model2.predict(x_1)
 		svm_x_test.append(flatten_2_features)
+		svm_y_test.append(dummy2_y[i])
 	svm_x_test = np.array(svm_x_test)	
 
 
 	dataset_size = len(svm_x_test)
+	svm_y_test = [np.where(r==1)[0][0] for r in svm_y_test]
 	svm_x_test = np.array(svm_x_test).reshape(dataset_size,-1)
 	print(clf.predict(svm_x_test))
+	print(y_test)
+	from sklearn.metrics import accuracy_score
+	print(accuracy_score(svm_y_test, clf.predict(svm_x_test)))
+if __name__ == '__main__':
+	import sys
+	#a = sys.argv[1]
+	x = train()
+	test(x)
